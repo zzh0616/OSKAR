@@ -107,6 +107,18 @@ void oskar_station_work_free(oskar_StationWork* work, int* status)
     free(work);
 }
 
+void oskar_station_work_set_astrometry(oskar_StationWork* work,
+        const oskar_AstrometryState* state)
+{
+    work->astrometry = state;
+}
+
+const oskar_AstrometryState* oskar_station_work_astrometry(
+        const oskar_StationWork* work)
+{
+    return work->astrometry;
+}
+
 oskar_Mem* oskar_station_work_horizon_mask(oskar_StationWork* work)
 {
     return work->horizon_mask;

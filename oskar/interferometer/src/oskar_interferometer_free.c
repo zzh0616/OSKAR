@@ -24,6 +24,7 @@ void oskar_interferometer_free(oskar_Interferometer* h, int* status)
         oskar_sky_free(h->sky_chunks[i], status);
     }
     oskar_telescope_free(h->tel, status);
+    oskar_astrometry_free(h->astrometry);
     oskar_mem_free(h->temp, status);
     oskar_timer_free(h->tmr_sim);
     oskar_timer_free(h->tmr_write);
@@ -58,6 +59,16 @@ void oskar_interferometer_free_device_data(oskar_Interferometer* h, int* status)
         oskar_timer_free(d->tmr_K);
         oskar_timer_free(d->tmr_join);
         oskar_timer_free(d->tmr_correlate);
+        oskar_timer_free(d->tmr_astrometry);
+        oskar_sky_free(d->astrometry_clip_cpu, status);
+        oskar_station_work_free(d->astrometry_work_cpu, status);
+        oskar_jones_free(d->R_cpu, status);
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            oskar_mem_free(d->itrs[axis], status);
+            oskar_mem_free(d->itrs_cpu[axis], status);
+            oskar_mem_free(d->lmn_cpu[axis], status);
+        }
         oskar_vis_block_free(d->vis_block_cpu[0], status);
         oskar_vis_block_free(d->vis_block_cpu[1], status);
         oskar_vis_block_free(d->vis_block, status);
@@ -71,6 +82,12 @@ void oskar_interferometer_free_device_data(oskar_Interferometer* h, int* status)
         oskar_sky_free(d->chunk_clip, status);
         oskar_telescope_free(d->tel, status);
         oskar_station_work_free(d->station_work, status);
+        oskar_astrometry_state_free(d->astrometry_state);
+        for (int axis = 0; axis < 6; ++axis)
+        {
+            oskar_mem_free(d->gaussian_axes[axis], status);
+            oskar_mem_free(d->gaussian_axes_cpu[axis], status);
+        }
         oskar_jones_free(d->J, status);
         oskar_jones_free(d->E, status);
         oskar_jones_free(d->K, status);

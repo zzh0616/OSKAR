@@ -57,6 +57,17 @@ extern "C" {
 OSKAR_EXPORT
 void oskar_interferometer_check_init(oskar_Interferometer* h, int* status);
 
+/* mode = "legacy" or "precision"; frame = "apparent", "icrs", "fk5_j2000".
+ * Precision supports CPU/CUDA and uses an explicit offline EOP table.
+ * Positive time/frequency widths require at least two quadrature samples;
+ * increase the counts until convergence for the intended sky and baselines.
+ * Changing this configuration after initialisation is not supported.
+ */
+OSKAR_EXPORT
+void oskar_interferometer_set_astrometry(oskar_Interferometer* h,
+        const char* mode, const char* frame, const char* eop_file,
+        int time_samples, int frequency_samples, int* status);
+
 OSKAR_EXPORT
 oskar_Interferometer* oskar_interferometer_create(int precision, int* status);
 

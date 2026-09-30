@@ -12,6 +12,8 @@
 
 #include <oskar_global.h>
 
+#include <convert/oskar_astrometry.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,6 +37,11 @@ extern "C" {
 OSKAR_EXPORT
 void oskar_station_beam_horizon_direction(const oskar_Station* station,
         const double gast_rad, double* x, double* y, double* z, int* status);
+
+OSKAR_EXPORT
+void oskar_station_beam_horizon_direction_astrometry(const oskar_Station* station,
+        const oskar_AstrometryState* state, double gast_rad,
+        double* x, double* y, double* z, int* status);
 
 #ifdef __cplusplus
 }

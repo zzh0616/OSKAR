@@ -3,6 +3,27 @@
 <s k="interferometer"><label>Interferometer settings</label>
     <desc>These settings are used only when running the interferometer
         simulation.</desc>
+    <s k="astrometry"><label>Astrometry</label>
+        <s k="mode"><label>Geometry mode</label>
+            <type name="OptionList" default="legacy">legacy,precision</type>
+            <desc>Legacy apparent-coordinate geometry, or optional CPU/CUDA ERFA
+                geometry. Precision never downloads data or falls back silently.</desc></s>
+        <s k="frame"><label>Input celestial frame</label>
+            <type name="OptionList" default="apparent">apparent,icrs,fk5_j2000</type>
+            <desc>Applies to all sky coordinates, phase centre, beam pointing
+                and polarization angles. ICRS/FK5 require precision mode.</desc></s>
+        <s k="eop_file"><label>Offline daily EOP table</label>
+            <type name="InputFile" default=""/>
+            <desc>ASCII: MJD_UTC DUT1_seconds xp_arcsec yp_arcsec TAI_minus_UTC_seconds.
+                Must bracket all integration samples; no extrapolation.</desc></s>
+        <s k="time_samples"><label>Time integration samples</label>
+            <type name="IntPositive" default="8"/>
+            <desc>Gauss-Legendre quadrature for the full response. Increase
+                until converged. Ignored for zero integration width or legacy mode.</desc></s>
+        <s k="frequency_samples"><label>Frequency integration samples</label>
+            <type name="IntPositive" default="8"/>
+            <desc>Gauss-Legendre quadrature; increase until converged.</desc></s>
+    </s>
     <s k="channel_bandwidth_hz" priority="1"><label>Channel bandwidth [Hz]</label>
         <type name="UnsignedDouble" default="0"/>
         <desc>The channel width, in Hz, used to simulate bandwidth smearing.

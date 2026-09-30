@@ -8,8 +8,60 @@
 
 #include <tables/Tables.h>
 #include <casa/Arrays/Vector.h>
+#include <exception>
+#include <cmath>
+#include <algorithm>
 
 using namespace casacore;
+
+int oskar_ms_set_astrometry_metadata(oskar_MeasurementSet* p,
+        int frame, const char* eop_snapshot, double channel_width_hz)
+{
+    if (!p || !p->ms || !eop_snapshot || frame < 1 || frame > 3 ||
+            !std::isfinite(channel_width_hz) || channel_width_hz < 0.) return 1;
+    const char* ref = frame == 1 ? "APP" : frame == 2 ? "ICRS" : "J2000";
+    try
+    {
+        const char* tables[] = {"FIELD", "FIELD", "FIELD", "POINTING", "POINTING", "SOURCE"};
+        const char* columns[] = {"DELAY_DIR", "PHASE_DIR", "REFERENCE_DIR", "DIRECTION", "TARGET", "DIRECTION"};
+        for (int i = 0; i < 6; ++i)
+        {
+            if (!p->ms->keywordSet().isDefined(tables[i])) continue;
+            Table table = p->ms->rwKeywordSet().asTable(tables[i]);
+            TableColumn col(table, columns[i]);
+            TableRecord info = col.keywordSet().asRecord("MEASINFO");
+            info.define("Ref", String(ref));
+            col.rwKeywordSet().defineRecord("MEASINFO", info);
+        }
+        p->ms->rwKeywordSet().define("OSKAR_ASTROMETRY_FRAME", String(ref));
+        p->ms->rwKeywordSet().define("OSKAR_ASTROMETRY_EOP", String(eop_snapshot));
+        p->ms->rwKeywordSet().define("OSKAR_UVW_BASIS",
+                String("geocentric vacuum phase direction; transported catalogue north; v1"));
+        p->ms->rwKeywordSet().define("OSKAR_ASTROMETRY_CHANNEL_WIDTH_HZ",
+                channel_width_hz);
+        if (channel_width_hz > 0.)
+        {
+            Table spw = p->ms->rwKeywordSet().asTable("SPECTRAL_WINDOW");
+            ArrayColumn<Double> freq(spw, "CHAN_FREQ");
+            const char* names[] = {"CHAN_WIDTH", "EFFECTIVE_BW", "RESOLUTION"};
+            for (rownr_t row = 0; row < spw.nrow(); ++row)
+            {
+                Vector<Double> centres;
+                freq.get(row, centres);
+                Vector<Double> widths(centres.size(), channel_width_hz);
+                for (int i = 0; i < 3; ++i)
+                    ArrayColumn<Double>(spw, names[i]).put(row, widths);
+                if (!centres.empty())
+                    ScalarColumn<Double>(spw, "TOTAL_BANDWIDTH").put(row,
+                            *std::max_element(centres.begin(), centres.end()) -
+                            *std::min_element(centres.begin(), centres.end()) +
+                            channel_width_hz);
+            }
+        }
+    }
+    catch (const std::exception&) { return 1; }
+    return 0;
+}
 
 size_t oskar_ms_column_element_size(
         const oskar_MeasurementSet* p,

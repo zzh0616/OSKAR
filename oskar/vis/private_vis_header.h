@@ -15,6 +15,8 @@
 struct oskar_VisHeader
 {
     oskar_Mem* settings;             /* Settings file contents. */
+    int astrometry_frame;           /* 0=legacy, 1=apparent, 2=ICRS, 3=FK5 J2000. */
+    oskar_Mem* astrometry_eop;       /* Exact offline EOP input, including comments. */
     oskar_Mem* telescope_path;       /* Path to telescope model. */
 
     int num_tags_header;             /* Number of tags read from the header. */

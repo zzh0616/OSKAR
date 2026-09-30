@@ -37,6 +37,9 @@ void oskar_interferometer_check_init(oskar_Interferometer* h, int* status)
         return;
     }
 
+    oskar_interferometer_check_astrometry(h, status);
+    if (*status) return;
+
     /* Evaluate magnetic field at station locations. */
     /* MJD starts at midnight on 17 November 1858, day number 321.
      * Reference year is therefore 1858.87945205. */
@@ -68,8 +71,9 @@ void oskar_interferometer_check_init(oskar_Interferometer* h, int* status)
                     ra0, dec0, status);
 
             /* Evaluate extended source parameters. */
-            oskar_sky_evaluate_gaussian_source_parameters(h->sky_chunks[i],
-                    h->zero_failed_gaussians, ra0, dec0, &num_failed, status);
+            if (!h->astrometry)
+                oskar_sky_evaluate_gaussian_source_parameters(h->sky_chunks[i],
+                        h->zero_failed_gaussians, ra0, dec0, &num_failed, status);
         }
         if (num_failed > 0)
         {
@@ -144,6 +148,10 @@ static void set_up_vis_header(oskar_Interferometer* h, int* status)
     oskar_vis_header_set_freq_inc_hz(h->header, h->freq_inc_hz);
     oskar_vis_header_set_time_start_mjd_utc(h->header, h->time_start_mjd_utc);
     oskar_vis_header_set_time_inc_sec(h->header, h->time_inc_sec);
+    if (h->astrometry)
+        oskar_vis_header_set_astrometry(h->header,
+                oskar_astrometry_frame(h->astrometry),
+                oskar_astrometry_eop_snapshot(h->astrometry), status);
     for (i_station = 0; i_station < num_stations; ++i_station)
     {
         oskar_vis_header_set_station_diameter(
@@ -351,6 +359,34 @@ static void* init_device(void* arg)
             oskar_sky_create_columns(d->chunk_clip, h->sky_chunks[0], status);
         }
         d->tel = oskar_telescope_create_copy(h->tel, dev_loc, status);
+        if (h->astrometry)
+        {
+            d->tmr_astrometry = oskar_timer_create(OSKAR_CPU);
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                d->lmn_cpu[axis] = oskar_mem_create(h->prec, OSKAR_CPU, 0, status);
+                d->itrs_cpu[axis] = oskar_mem_create(h->prec, OSKAR_CPU, 0, status);
+                d->itrs[axis] = oskar_mem_create(h->prec, dev_loc, 0, status);
+            }
+            for (int axis = 0; axis < 6; ++axis)
+            {
+                d->gaussian_axes[axis] = oskar_mem_create(h->prec, dev_loc, 0, status);
+                d->gaussian_axes_cpu[axis] = oskar_mem_create(h->prec, OSKAR_CPU, 0, status);
+            }
+            d->R_cpu = oskar_type_is_matrix(vistype) ? oskar_jones_create(
+                    vistype, OSKAR_CPU, num_stations, num_src, status) : 0;
+            if (dev_loc != OSKAR_CPU)
+            {
+                d->astrometry_clip_cpu = oskar_sky_create(h->prec, OSKAR_CPU, num_src, status);
+                d->astrometry_work_cpu = oskar_station_work_create(h->prec, OSKAR_CPU, status);
+                if (h->num_sky_chunks > 0)
+                    oskar_sky_create_columns(d->astrometry_clip_cpu, h->sky_chunks[0], status);
+            }
+            /* Precise mode integrates the full response explicitly, not the
+             * legacy analytic smearing expression a second time. */
+            oskar_telescope_set_time_average(d->tel, 0.);
+            oskar_telescope_set_channel_bandwidth(d->tel, 0.);
+        }
         d->J = oskar_jones_create(vistype, dev_loc, num_stations, num_src,
                 status);
         d->R = oskar_type_is_matrix(vistype) ? oskar_jones_create(vistype,

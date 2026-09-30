@@ -118,6 +118,7 @@ static void record_timing(oskar_Interferometer* h)
     int i = 0;
     double t_copy = 0., t_clip = 0., t_E = 0., t_K = 0., t_join = 0.;
     double t_correlate = 0., t_compute = 0., t_components = 0.;
+    double t_astrometry = 0.;
     double *compute_times = 0;
     compute_times = (double*) calloc(h->num_devices, sizeof(double));
     for (i = 0; i < h->num_devices; ++i)
@@ -130,6 +131,8 @@ static void record_timing(oskar_Interferometer* h)
         t_K += oskar_timer_elapsed(h->d[i].tmr_K);
         t_correlate += oskar_timer_elapsed(h->d[i].tmr_correlate);
         t_compute += compute_times[i];
+        if (h->d[i].tmr_astrometry)
+            t_astrometry += oskar_timer_elapsed(h->d[i].tmr_astrometry);
     }
     t_components = t_copy + t_clip + t_E + t_K + t_join + t_correlate;
 
@@ -144,6 +147,9 @@ static void record_timing(oskar_Interferometer* h)
     }
     oskar_log_value(h->log, 'M', 0, "Write", "%.3f s",
             oskar_timer_elapsed(h->tmr_write));
+    if (h->astrometry)
+        oskar_log_value(h->log, 'M', 0, "Host astrometry incl. upload", "%.6f s (sum over devices)",
+                t_astrometry);
     oskar_log_message(h->log, 'M', 0, "Compute components:");
     oskar_log_value(h->log, 'M', 1, "Copy", "%4.1f%%",
             (t_copy / t_compute) * 100.0);

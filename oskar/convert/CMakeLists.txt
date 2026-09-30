@@ -4,10 +4,12 @@
 
 set(name convert)
 set(${name}_SRC
+    src/oskar_astrometry.c
     define_convert_az_el_to_enu_directions.h
     define_convert_apparent_ra_dec_to_enu_directions.h
     define_convert_cirs_relative_directions_to_enu_directions.h
     define_convert_ecef_to_station_uvw.h
+    define_convert_uvw_matrix.h
     define_convert_enu_directions_to_az_el.h
     #define_convert_enu_directions_to_cirs_relative_directions.h
     define_convert_enu_directions_to_local_tangent_plane.h
@@ -27,6 +29,7 @@ set(${name}_SRC
     src/oskar_convert_ecef_to_enu.c
     src/oskar_convert_ecef_to_geodetic_spherical.c
     src/oskar_convert_ecef_to_station_uvw.c
+    src/oskar_convert_ecef_to_station_uvw_matrix.c
     #src/oskar_convert_enu_directions_to_az_el.c
     #src/oskar_convert_enu_directions_to_cirs_relative_directions.c
     src/oskar_convert_enu_directions_to_local_tangent_plane.c

@@ -93,7 +93,7 @@ static void oskar_evaluate_station_beam_aperture_array_private(
     phi_y = work->phi_y;
 
     /* Compute direction cosines for the beam for this station. */
-    oskar_station_beam_horizon_direction(s, gast_rad,
+    oskar_station_beam_horizon_direction_astrometry(s, work->astrometry, gast_rad,
             &beam_x, &beam_y, &beam_z, status);
 
     /* Check if HARP data exist. */

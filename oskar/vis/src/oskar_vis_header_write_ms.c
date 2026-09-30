@@ -127,6 +127,12 @@ oskar_MeasurementSet* oskar_vis_header_write_ms(const oskar_VisHeader* hdr,
 
     /* Set the phase centre. */
     oskar_ms_set_phase_centre(ms, coord_type, lon_rad, lat_rad);
+    if (oskar_vis_header_astrometry_frame(hdr) &&
+            oskar_ms_set_astrometry_metadata(ms,
+                    oskar_vis_header_astrometry_frame(hdr),
+                    oskar_vis_header_astrometry_eop(hdr),
+                    oskar_vis_header_channel_bandwidth_hz(hdr)))
+        *status = OSKAR_ERR_FILE_IO;
 
     /* Get absolute ECEF coordinates of telescope reference position. */
     oskar_convert_geodetic_spherical_to_ecef(1,

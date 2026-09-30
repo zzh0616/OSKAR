@@ -17,13 +17,30 @@ extern "C" {
 void oskar_station_beam_horizon_direction(const oskar_Station* station,
         const double gast_rad, double* x, double* y, double* z, int* status)
 {
+    oskar_station_beam_horizon_direction_astrometry(station, 0, gast_rad,
+            x, y, z, status);
+}
+
+void oskar_station_beam_horizon_direction_astrometry(const oskar_Station* station,
+        const oskar_AstrometryState* state, double gast_rad,
+        double* x, double* y, double* z, int* status)
+{
     if (*status) return;
 
     /* Get direction cosines in horizontal coordinates. */
     const int beam_coord_type = oskar_station_beam_coord_type(station);
     const double beam_lon_rad = oskar_station_beam_lon_rad(station);
     const double beam_lat_rad = oskar_station_beam_lat_rad(station);
-    if (beam_coord_type == OSKAR_COORDS_RADEC)
+    if (state && beam_coord_type == OSKAR_COORDS_RADEC)
+    {
+        double p[3] = {0., 0., 0.}, enu[3];
+        oskar_astrometry_direction(state, beam_lon_rad, beam_lat_rad,
+                p, 0, status);
+        oskar_astrometry_enu(p, oskar_station_lon_rad(station),
+                oskar_station_lat_rad(station), enu);
+        *x = enu[0]; *y = enu[1]; *z = enu[2];
+    }
+    else if (beam_coord_type == OSKAR_COORDS_RADEC)
     {
         const double last_rad = gast_rad +
                 oskar_station_lon_rad(station); /* Local Sidereal Time. */

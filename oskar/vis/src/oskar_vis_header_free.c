@@ -16,6 +16,7 @@ void oskar_vis_header_free(oskar_VisHeader* hdr, int* status)
     if (!hdr) return;
     oskar_mem_free(hdr->telescope_path, status);
     oskar_mem_free(hdr->settings, status);
+    oskar_mem_free(hdr->astrometry_eop, status);
     oskar_mem_free(hdr->station_diameter_m, status);
     for (i = 0; i < hdr->num_stations; ++i)
     {

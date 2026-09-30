@@ -10,6 +10,7 @@
 
 #include "utility/oskar_get_error_string.h"
 #include "utility/oskar_get_memory_usage.h"
+#include "convert/oskar_convert_station_uvw_to_baseline_uvw.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,7 +55,31 @@ oskar_VisBlock* oskar_interferometer_finalise_block(oskar_Interferometer* h,
     /* Calculate (u,v,w) coordinates for the block. */
     if (oskar_vis_block_has_cross_correlations(b0))
     {
-        oskar_telescope_uvw(
+        if (h->astrometry)
+        {
+            const int ns = oskar_telescope_num_stations(h->tel);
+            const int nb = ns*(ns-1)/2;
+            oskar_Mem* u = oskar_vis_block_station_uvw_metres(b0, 0);
+            oskar_Mem* v = oskar_vis_block_station_uvw_metres(b0, 1);
+            oskar_Mem* w = oskar_vis_block_station_uvw_metres(b0, 2);
+            for (i = 0; i < oskar_vis_block_num_times(b0) && !*status; ++i)
+            {
+                oskar_AstrometryState* s = oskar_astrometry_state_create(
+                        h->astrometry, h->time_start_mjd_utc,
+                        (oskar_vis_block_start_time_index(b0) + i + 0.5)*h->time_inc_sec,
+                        oskar_telescope_phase_centre_longitude_rad(h->tel),
+                        oskar_telescope_phase_centre_latitude_rad(h->tel), status);
+                oskar_interferometer_astrometry_uvw(h->tel, s, 0, 0,
+                        i*ns, u, v, w, status);
+                oskar_convert_station_uvw_to_baseline_uvw(h->casa_phase_convention,
+                        ns, i*ns, u, v, w, i*nb,
+                        oskar_vis_block_baseline_uvw_metres(b0, 0),
+                        oskar_vis_block_baseline_uvw_metres(b0, 1),
+                        oskar_vis_block_baseline_uvw_metres(b0, 2), status);
+                oskar_astrometry_state_free(s);
+            }
+        }
+        else oskar_telescope_uvw(
                 h->tel,
                 h->casa_phase_convention,
                 0, /* Use measured coordinates. */

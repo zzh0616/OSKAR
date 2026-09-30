@@ -21,6 +21,14 @@ OSKAR_EXPORT
 oskar_Mem* oskar_vis_header_telescope_path(oskar_VisHeader* vis);
 
 OSKAR_EXPORT
+void oskar_vis_header_set_astrometry(oskar_VisHeader* vis, int frame,
+        const char* eop_snapshot, int* status);
+OSKAR_EXPORT
+int oskar_vis_header_astrometry_frame(const oskar_VisHeader* vis);
+OSKAR_EXPORT
+const char* oskar_vis_header_astrometry_eop(const oskar_VisHeader* vis);
+
+OSKAR_EXPORT
 const oskar_Mem* oskar_vis_header_telescope_path_const(
         const oskar_VisHeader* vis
 );

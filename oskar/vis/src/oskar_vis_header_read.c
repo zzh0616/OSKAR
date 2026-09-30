@@ -79,6 +79,29 @@ oskar_VisHeader* oskar_vis_header_read(oskar_Binary* h, int* status)
     );
     if (!tag_error) num_tags_header += 1;
 
+    /* Once the optional frame tag exists, require its complete payload. */
+    tag_error = 0;
+    oskar_binary_query_ext(h, 0, "OSKAR_ASTROMETRY", "FRAME_V1", 0,
+            0, &tag_error);
+    if (!tag_error)
+    {
+        size_t size = 0;
+        ++num_tags_header;
+        oskar_binary_read_ext_int(h, "OSKAR_ASTROMETRY", "FRAME_V1", 0,
+                &vis->astrometry_frame, status);
+        if (vis->astrometry_frame < 1 || vis->astrometry_frame > 3)
+            *status = OSKAR_ERR_INVALID_ARGUMENT;
+        oskar_binary_query_ext(h, OSKAR_CHAR, "OSKAR_ASTROMETRY", "EOP_V1",
+                0, &size, status);
+        if (!size || size > 100000000) *status = OSKAR_ERR_INVALID_ARGUMENT;
+        oskar_mem_realloc(vis->astrometry_eop, size, status);
+        oskar_binary_read_ext(h, OSKAR_CHAR, "OSKAR_ASTROMETRY", "EOP_V1", 0,
+                size, oskar_mem_char(vis->astrometry_eop), status);
+        if (!*status && oskar_mem_char(vis->astrometry_eop)[size-1] != '\0')
+            *status = OSKAR_ERR_INVALID_ARGUMENT;
+        if (!*status) ++num_tags_header;
+    }
+
     /* Read the telescope model path. */
     oskar_binary_read_mem(h, vis->telescope_path,
             grp, OSKAR_VIS_HEADER_TAG_TELESCOPE_PATH, 0, status

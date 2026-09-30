@@ -7,9 +7,12 @@
 #define OSKAR_PRIVATE_STATION_WORK_H_
 
 #include <mem/oskar_mem.h>
+#include <convert/oskar_astrometry.h>
 
 struct oskar_StationWork
 {
+    /* Borrowed, immutable state for this worker's current time sample. */
+    const oskar_AstrometryState* astrometry;
     oskar_Mem* weights;          /* Complex scalar. */
     oskar_Mem* weights_scratch;  /* Complex scalar. */
     oskar_Mem* horizon_mask;     /* Integer. */

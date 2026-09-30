@@ -4,6 +4,7 @@
 #include "convert/define_convert_apparent_ra_dec_to_enu_directions.h"
 #include "convert/define_convert_cirs_relative_directions_to_enu_directions.h"
 #include "convert/define_convert_ecef_to_station_uvw.h"
+#include "convert/define_convert_uvw_matrix.h"
 #include "convert/define_convert_enu_directions_to_az_el.h"
 /*#include "convert/define_convert_enu_directions_to_cirs_relative_directions.h"*/
 #include "convert/define_convert_enu_directions_to_local_tangent_plane.h"
@@ -18,6 +19,9 @@
 #include "utility/oskar_vector_types.h"
 
 /* Kernels */
+
+OSKAR_CONVERT_UVW_MATRIX(convert_uvw_matrix_float, float)
+OSKAR_CONVERT_UVW_MATRIX(convert_uvw_matrix_double, double)
 
 #define Real float
 #define Real2 float2

@@ -24,6 +24,23 @@ oskar_Interferometer* oskar_settings_to_interferometer(oskar::SettingsTree* s,
     oskar_Interferometer* h = oskar_interferometer_create(prec, status);
     oskar_Log* log_ = oskar_interferometer_log(h);
 
+    // The precision path must not use defaults after an invalid input value.
+    const bool precision_mode = s->starts_with(
+            "interferometer/astrometry/mode", "precision", status);
+    const char* astrometry_prefix = "interferometer/astrometry/";
+    for (int i = 0; i < s->num_failed_keys(); ++i)
+    {
+        const char* key = s->failed_key(i);
+        if (precision_mode || !strncmp(key, astrometry_prefix,
+                strlen(astrometry_prefix)))
+        {
+            oskar_log_error(log_, "Invalid precision configuration: %s=%s",
+                    key, s->failed_key_value(i));
+            *status = OSKAR_ERR_INVALID_ARGUMENT;
+            return h;
+        }
+    }
+
     // Set simulator settings.
     s->begin_group("simulator");
     oskar_interferometer_set_max_sources_per_chunk(h,
@@ -82,6 +99,12 @@ oskar_Interferometer* oskar_settings_to_interferometer(oskar::SettingsTree* s,
     // Set interferometer settings.
     // Must be done BEFORE the observation settings!
     s->begin_group("interferometer");
+    oskar_interferometer_set_astrometry(h,
+            s->to_string("astrometry/mode", status),
+            s->to_string("astrometry/frame", status),
+            s->to_string("astrometry/eop_file", status),
+            s->to_int("astrometry/time_samples", status),
+            s->to_int("astrometry/frequency_samples", status), status);
     oskar_interferometer_set_correlation_type(h,
             s->to_string("correlation_type", status), status);
     oskar_interferometer_set_casa_phase_convention(h,

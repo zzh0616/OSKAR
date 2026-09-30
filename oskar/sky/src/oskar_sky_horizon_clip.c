@@ -7,6 +7,7 @@
 #include "sky/oskar_sky.h"
 #include "sky/oskar_sky_copy_source_data.h"
 #include "sky/oskar_update_horizon_mask.h"
+#include "convert/oskar_astrometry.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,7 +71,37 @@ void oskar_sky_horizon_clip(
     const int num_station_models = oskar_telescope_num_station_models(
             telescope
     );
-    for (i = 0; i < num_station_models; ++i)
+    const oskar_AstrometryState* state = oskar_station_work_astrometry(work);
+    if (state)
+    {
+        int j = 0;
+        if (location != OSKAR_CPU)
+        {
+            *status = OSKAR_ERR_BAD_LOCATION;
+            return;
+        }
+        int* mask = oskar_mem_int(horizon_mask, status);
+        /* Transform each source once, not once per station. The mask is the
+         * union of station horizons; station beams still blank individually. */
+        for (j = 0; j < num_in && !*status; ++j)
+        {
+            double p[3] = {0., 0., 0.};
+            oskar_astrometry_direction(state,
+                    oskar_mem_get_element(oskar_sky_column_const(in,
+                            OSKAR_SKY_RA_RAD, 0), j, status),
+                    oskar_mem_get_element(oskar_sky_column_const(in,
+                            OSKAR_SKY_DEC_RAD, 0), j, status), p, 0, status);
+            for (i = 0; i < num_station_models && !*status; ++i)
+            {
+                const oskar_Station* s = oskar_telescope_station_const(telescope, i);
+                double enu[3];
+                oskar_astrometry_enu(p, oskar_station_lon_rad(s),
+                        oskar_station_lat_rad(s), enu);
+                if (enu[2] > 0.) { mask[j] = 1; break; }
+            }
+        }
+    }
+    else for (i = 0; i < num_station_models; ++i)
     {
         const oskar_Station* s = oskar_telescope_station_const(telescope, i);
         oskar_update_horizon_mask(

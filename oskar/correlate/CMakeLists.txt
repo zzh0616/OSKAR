@@ -20,6 +20,8 @@ set(correlate_SRC
     src/oskar_cross_correlate_omp.cpp
     src/oskar_cross_correlate_scalar_omp.cpp
     src/oskar_cross_correlate.c
+    src/oskar_cross_correlate_gaussian_uvw.cpp
+    src/oskar_cross_correlate_gaussian_uvw_cuda.cu
     src/oskar_evaluate_auto_power.c
     src/oskar_evaluate_cross_power.c
 )

@@ -12,6 +12,7 @@
 
 #include <oskar_global.h>
 #include <mem/oskar_mem.h>
+#include <convert/oskar_astrometry.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +54,14 @@ OSKAR_EXPORT
 void oskar_station_work_free(oskar_StationWork* work, int* status);
 
 /* Accessors. */
+
+OSKAR_EXPORT
+void oskar_station_work_set_astrometry(oskar_StationWork* work,
+        const oskar_AstrometryState* state);
+
+OSKAR_EXPORT
+const oskar_AstrometryState* oskar_station_work_astrometry(
+        const oskar_StationWork* work);
 
 OSKAR_EXPORT
 oskar_Mem* oskar_station_work_horizon_mask(oskar_StationWork* work);

@@ -17,23 +17,30 @@
 #include <utility/oskar_timer.h>
 #include <vis/oskar_vis_block.h>
 #include <vis/oskar_vis_header.h>
+#include <convert/oskar_astrometry.h>
 
 /* Memory allocated per compute device (may be either CPU or GPU). */
 struct DeviceData
 {
     /* Host memory. */
     oskar_VisBlock* vis_block_cpu[2]; /* On host, for copy back & write. */
+    oskar_Sky* astrometry_clip_cpu;
+    oskar_StationWork* astrometry_work_cpu;
+    oskar_Mem *lmn_cpu[3], *itrs_cpu[3], *gaussian_axes_cpu[6];
+    oskar_Jones* R_cpu;
 
     /* Device memory. */
     int previous_chunk_index;
     oskar_VisBlock* vis_block;  /* Device memory block. */
-    oskar_Mem *lmn[3], *uvw[3];
+    oskar_Mem *lmn[3], *uvw[3], *itrs[3];
     oskar_Sky* chunk;           /* The unmodified sky chunk being processed. */
     oskar_Sky* chunk_clip;      /* Copy of the chunk after horizon clipping. */
     oskar_Telescope* tel;       /* Telescope model, created as a copy. */
     oskar_Jones *J, *R, *E, *K;
     oskar_Mem *gains;
     oskar_StationWork* station_work;
+    oskar_AstrometryState* astrometry_state;
+    oskar_Mem* gaussian_axes[6]; /* Precision Gaussian factors in UVW. */
 
     /* Timers. */
     oskar_Timer* tmr_compute;   /* Total time spent filling vis blocks. */
@@ -43,6 +50,7 @@ struct DeviceData
     oskar_Timer* tmr_join;      /* Time spent combining Jones matrices. */
     oskar_Timer* tmr_E;         /* Time spent evaluating E-Jones. */
     oskar_Timer* tmr_K;         /* Time spent evaluating K-Jones. */
+    oskar_Timer* tmr_astrometry; /* Host geometry, including bulk uploads. */
 };
 typedef struct DeviceData DeviceData;
 
@@ -60,6 +68,8 @@ struct oskar_Interferometer
     double source_min_jy, source_max_jy;
     double ms_dish_diameter;
     char correlation_type, *vis_name, *ms_name, *settings_path;
+    oskar_Astrometry* astrometry;
+    int astrometry_time_samples, astrometry_frequency_samples;
 
     /* State. */
     int init_sky, work_unit_index;
@@ -87,5 +97,12 @@ struct oskar_Interferometer
 #define OSKAR_INTERFEROMETER_TYPEDEF_
 typedef struct oskar_Interferometer oskar_Interferometer;
 #endif
+
+void oskar_interferometer_check_astrometry(oskar_Interferometer* h, int* status);
+void oskar_interferometer_astrometry_prepare(oskar_Interferometer* h,
+        DeviceData* d, const oskar_Sky* sky, int* status);
+void oskar_interferometer_astrometry_uvw(const oskar_Telescope* tel,
+        const oskar_AstrometryState* state, int use_true, int ignore_w,
+        int offset, oskar_Mem* u, oskar_Mem* v, oskar_Mem* w, int* status);
 
 #endif /* include guard */

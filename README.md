@@ -3,6 +3,27 @@
 
 # OSKAR: A GPU-accelerated simulator for the Square Kilometre Array
 
+## Precision astrometry development fork
+
+The `feature/uvw-precision` branch in
+[zzh0616/OSKAR](https://github.com/zzh0616/OSKAR/tree/feature/uvw-precision)
+adds optional offline precision geometry to the OSKAR 2.13.0 interferometer.
+It supports explicit apparent, ICRS and FK5 J2000 inputs, consistent geometry
+through the beam/phase/polarization calculation, and CPU/CUDA execution.
+The existing legacy mode remains the default. See
+[the configuration and acceptance documentation](docs/precision_astrometry.rst).
+
+The development checkpoint is tagged `uvw-precision-2.13.0-20260930`.
+It has passed the combined CUDA, HDF5 and Measurement Set acceptance described
+in [the upstream proposal draft](docs/uvw_precision_upstream.md). This branch
+has not been accepted upstream. Standalone beam-pattern, AZ/EL phase tracking,
+HARP and HIP/DCU remain separate extensions.
+
+Development commits are maintained in this fork. Upstream updates come from
+`https://gitlab.com/ska-telescope/sim/oskar.git`; merge them on a separate update
+branch, rerun legacy and opt-in tests, then merge the tested update into
+`feature/uvw-precision`. Published checkpoint tags identify fixed source states.
+
 OSKAR has been designed to produce simulated visibility data from radio
 telescopes containing aperture arrays, such as those envisaged for the
 Square Kilometre Array.

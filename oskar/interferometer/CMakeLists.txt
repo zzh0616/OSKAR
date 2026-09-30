@@ -11,6 +11,7 @@ set(interferometer_SRC
     src/oskar_evaluate_jones_K.c
     src/oskar_evaluate_jones_R.c
     src/oskar_interferometer_accessors.c
+    src/oskar_interferometer_astrometry.c
     src/oskar_interferometer_check_init.c
     src/oskar_interferometer_create.c
     src/oskar_interferometer_finalise_block.c

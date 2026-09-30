@@ -18,6 +18,33 @@ oskar_Mem* oskar_vis_header_telescope_path(oskar_VisHeader* vis)
     return vis->telescope_path;
 }
 
+void oskar_vis_header_set_astrometry(oskar_VisHeader* vis, int frame,
+        const char* eop, int* status)
+{
+    size_t n = 0;
+    if (*status) return;
+    if (!vis || frame < 0 || frame > 3 || (frame && (!eop || !eop[0])))
+    {
+        *status = OSKAR_ERR_INVALID_ARGUMENT;
+        return;
+    }
+    n = eop ? strlen(eop) + 1 : 0;
+    oskar_mem_realloc(vis->astrometry_eop, n, status);
+    if (*status) return;
+    if (n) memcpy(oskar_mem_char(vis->astrometry_eop), eop, n);
+    vis->astrometry_frame = frame;
+}
+
+int oskar_vis_header_astrometry_frame(const oskar_VisHeader* vis)
+{
+    return vis->astrometry_frame;
+}
+
+const char* oskar_vis_header_astrometry_eop(const oskar_VisHeader* vis)
+{
+    return oskar_mem_char_const(vis->astrometry_eop);
+}
+
 const oskar_Mem* oskar_vis_header_telescope_path_const(
         const oskar_VisHeader* vis
 )

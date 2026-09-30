@@ -93,7 +93,8 @@ enum OSKAR_COORD_TYPE
     OSKAR_COORDS_RADEC,
     OSKAR_COORDS_HADEC,
     OSKAR_COORDS_AZEL,
-    OSKAR_COORDS_GALACTIC
+    OSKAR_COORDS_GALACTIC,
+    OSKAR_COORDS_ITRS_DIR /* Cartesian direction, already transformed to ITRS. */
 };
 
 /* Macros used to prevent Eclipse from complaining about unknown CUDA syntax,

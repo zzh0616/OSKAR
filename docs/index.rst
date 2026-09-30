@@ -49,6 +49,7 @@ used by OSKAR.
    FAQ <faq/faq>
    apps/apps
    theory/theory
+   precision_astrometry
    theory/tec_screens
    binary_file/binary_file
    license

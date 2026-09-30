@@ -60,7 +60,9 @@ void oskar_station_beam(
 
     /* Get station properties. */
     const int station_type = oskar_station_type(station);
-    const double gast_rad = oskar_convert_mjd_to_gast_fast(time_mjd_utc);
+    const double gast_rad = work->astrometry ?
+            oskar_astrometry_gast(work->astrometry) :
+            oskar_convert_mjd_to_gast_fast(time_mjd_utc);
     const double lat_rad = oskar_station_lat_rad(station);
     const double lst_rad = gast_rad + oskar_station_lon_rad(station);
 
@@ -74,7 +76,12 @@ void oskar_station_beam(
             work->temp_dir_in[1],
             work->temp_dir_in[2]
     };
-    oskar_convert_any_to_enu_directions(
+    if (work->astrometry)
+        oskar_astrometry_convert_to_enu(work->astrometry,
+                oskar_station_beam_coord_type(station), 1, temp_dir,
+                0., 0., oskar_station_lon_rad(station), lat_rad,
+                work->temp_dir_out, status);
+    else oskar_convert_any_to_enu_directions(
             oskar_station_beam_coord_type(station), 1, temp_dir,
             0., 0., lst_rad, lat_rad, work->temp_dir_out, status);
     const double bx = oskar_mem_get_element(work->temp_dir_out[0], 0, status);
@@ -101,7 +108,12 @@ void oskar_station_beam(
         lmn[i] = oskar_station_work_lmn_direction(
                 work, i, num_points + 1, status);
     }
-    oskar_convert_any_to_enu_directions(source_coord_type,
+    if (work->astrometry)
+        oskar_astrometry_convert_to_enu(work->astrometry,
+                source_coord_type, num_points, source_coords,
+                ref_lon_rad, ref_lat_rad, oskar_station_lon_rad(station),
+                lat_rad, enu, status);
+    else oskar_convert_any_to_enu_directions(source_coord_type,
             num_points, source_coords, ref_lon_rad, ref_lat_rad,
             lst_rad, lat_rad, enu, status);
 
@@ -120,7 +132,12 @@ void oskar_station_beam(
                 work->temp_dir_in[1],
                 work->temp_dir_in[2]
         };
-        oskar_convert_any_to_enu_directions(norm_coord_type, 1, temp_dir,
+        if (work->astrometry)
+            oskar_astrometry_convert_to_enu(work->astrometry,
+                    norm_coord_type, 1, temp_dir, 0., 0.,
+                    oskar_station_lon_rad(station), lat_rad,
+                    work->temp_dir_out, status);
+        else oskar_convert_any_to_enu_directions(norm_coord_type, 1, temp_dir,
                 0., 0., lst_rad, lat_rad, work->temp_dir_out, status);
 
         /* Copy normalisation source to ENU source coordinates. */

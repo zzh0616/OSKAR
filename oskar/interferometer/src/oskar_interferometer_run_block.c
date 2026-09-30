@@ -11,10 +11,13 @@
 #include "convert/oskar_convert_mjd_to_gast_fast.h"
 #include "correlate/oskar_auto_correlate.h"
 #include "correlate/oskar_cross_correlate.h"
+#include "correlate/oskar_cross_correlate_gaussian_uvw.h"
 #include "interferometer/oskar_evaluate_jones_E.h"
 #include "interferometer/oskar_evaluate_jones_K.h"
 #include "interferometer/oskar_evaluate_jones_R.h"
 #include "utility/oskar_device.h"
+#include "math/oskar_cmath.h"
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +25,11 @@ extern "C" {
 
 static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
         oskar_Sky* sky, int channel_index_block, int time_index_block,
-        int channel_index_sim, int time_index_sim, int* status);
+        int channel_index_sim, int time_index_sim, double time_offset_sec,
+        double frequency_offset_hz, double weight, int* status);
+static void sim_astrometry(oskar_Interferometer* h, DeviceData* d,
+        int chunk_index, int time_index, int time_index_block, int channel_start,
+        int num_channels, int* status);
 static unsigned int disp_width(unsigned int v);
 
 void oskar_interferometer_run_block(oskar_Interferometer* h, int block_index,
@@ -111,6 +118,14 @@ void oskar_interferometer_run_block(oskar_Interferometer* h, int block_index,
         }
         sky = h->apply_horizon_clip ? d->chunk_clip : d->chunk;
 
+        if (h->astrometry)
+        {
+            sim_astrometry(h, d, i_chunk, sim_time_idx, i_time,
+                    chan_index_start, num_chans_block, status);
+            d->previous_chunk_index = i_chunk;
+            continue;
+        }
+
         /* Apply horizon clip if required. */
         if (h->apply_horizon_clip)
         {
@@ -139,7 +154,7 @@ void oskar_interferometer_run_block(oskar_Interferometer* h, int block_index,
             );
             oskar_mutex_unlock(h->mutex);
             sim_baselines(h, d, sky, i_channel, i_time,
-                    sim_chan_idx, sim_time_idx, status);
+                    sim_chan_idx, sim_time_idx, 0., 0., 1., status);
         }
         d->previous_chunk_index = i_chunk;
     }
@@ -153,9 +168,82 @@ void oskar_interferometer_run_block(oskar_Interferometer* h, int block_index,
 }
 
 
+static void sim_astrometry(oskar_Interferometer* h, DeviceData* d,
+        int chunk_index, int time_index, int time_index_block, int channel_start,
+        int num_channels, int* status)
+{
+    const double width_t = oskar_telescope_time_average_sec(h->tel);
+    const double width_f = oskar_telescope_channel_bandwidth_hz(h->tel);
+    const int nt = width_t > 0. ? h->astrometry_time_samples : 1;
+    const int nf = width_f > 0. ? h->astrometry_frequency_samples : 1;
+    double* samples = 0;
+    double *xt = 0, *wt = 0, *xf = 0, *wf = 0;
+    int it = 0, ic = 0, jf = 0;
+    if (*status) return;
+    samples = (double*) calloc(2*(nt + nf), sizeof(double));
+    if (!samples)
+    {
+        *status = OSKAR_ERR_MEMORY_ALLOC_FAILURE;
+        return;
+    }
+    xt = samples; wt = xt + nt; xf = wt + nt; wf = xf + nf;
+    oskar_astrometry_quadrature(nt, xt, wt, status);
+    oskar_astrometry_quadrature(nf, xf, wf, status);
+    for (it = 0; it < nt && !*status; ++it)
+    {
+        const int gpu = oskar_telescope_mem_location(d->tel) != OSKAR_CPU;
+        oskar_Sky* sky = h->apply_horizon_clip ? d->chunk_clip : d->chunk;
+        const oskar_Sky* host_sky = gpu ? h->sky_chunks[chunk_index] : sky;
+        const double dt = width_t*xt[it];
+        oskar_timer_resume(d->tmr_astrometry);
+        oskar_station_work_set_astrometry(d->station_work, 0);
+        oskar_astrometry_state_free(d->astrometry_state);
+        d->astrometry_state = oskar_astrometry_state_create(h->astrometry,
+                h->time_start_mjd_utc, (time_index + 0.5)*h->time_inc_sec + dt,
+                oskar_telescope_phase_centre_longitude_rad(h->tel),
+                oskar_telescope_phase_centre_latitude_rad(h->tel), status);
+        oskar_station_work_set_astrometry(d->station_work, d->astrometry_state);
+        if (*status)
+        {
+            oskar_timer_pause(d->tmr_astrometry);
+            break;
+        }
+        if (h->apply_horizon_clip)
+        {
+            if (gpu)
+            {
+                oskar_station_work_set_astrometry(d->astrometry_work_cpu, d->astrometry_state);
+                oskar_sky_horizon_clip(d->astrometry_clip_cpu, host_sky, h->tel,
+                        oskar_astrometry_gast(d->astrometry_state),
+                        d->astrometry_work_cpu, status);
+                host_sky = d->astrometry_clip_cpu;
+                oskar_sky_copy(sky, host_sky, status);
+            }
+            else
+            oskar_sky_horizon_clip(d->chunk_clip, d->chunk, d->tel,
+                    oskar_astrometry_gast(d->astrometry_state),
+                    d->station_work, status);
+        }
+        oskar_interferometer_astrometry_prepare(h, d, host_sky, status);
+        oskar_timer_pause(d->tmr_astrometry);
+        for (ic = 0; ic < num_channels && !*status; ++ic)
+            for (jf = 0; jf < nf && !*status; ++jf)
+                sim_baselines(h, d, sky, ic, time_index_block,
+                        channel_start + ic, time_index, dt,
+                        width_f*xf[jf], wt[it]*wf[jf], status);
+    }
+    free(samples);
+    oskar_mutex_lock(h->mutex);
+    oskar_log_message(h->log, 'S', 1,
+            "Precision time %d/%d: %d channels, %d x %d quadrature samples",
+            time_index + 1, h->num_time_steps, num_channels, nt, nf);
+    oskar_mutex_unlock(h->mutex);
+}
+
 static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
         oskar_Sky* sky, int channel_index_block, int time_index_block,
-        int channel_index_sim, int time_index_sim, int* status)
+        int channel_index_sim, int time_index_sim, double time_offset_sec,
+        double frequency_offset_hz, double weight, int* status)
 {
     /* Get dimensions. */
     const int num_baselines   = oskar_telescope_num_baselines(d->tel);
@@ -176,9 +264,13 @@ static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
     /* Get the time and frequency of the visibility slice being simulated. */
     const double dt_dump_days = h->time_inc_sec / 86400.0;
     const double t_start = h->time_start_mjd_utc;
-    const double t_dump = t_start + dt_dump_days * (time_index_sim + 0.5);
-    const double gast_rad = oskar_convert_mjd_to_gast_fast(t_dump);
-    const double freq = h->freq_start_hz + channel_index_sim * h->freq_inc_hz;
+    const double t_dump = t_start + dt_dump_days * (time_index_sim + 0.5) +
+            time_offset_sec / 86400.;
+    const double gast_rad = h->astrometry ?
+            oskar_astrometry_gast(d->astrometry_state) :
+            oskar_convert_mjd_to_gast_fast(t_dump);
+    const double freq = h->freq_start_hz + channel_index_sim * h->freq_inc_hz +
+            frequency_offset_hz;
 
     /* Scale source fluxes with spectral index and rotation measure. */
     oskar_sky_scale_flux_with_frequency(sky, freq, status);
@@ -194,7 +286,7 @@ static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
      * The sign convention doesn't actually matter here, since this is
      * evaluating just the station rather than the baseline coordinates.
      */
-    oskar_telescope_uvw(
+    if (!h->astrometry) oskar_telescope_uvw(
             d->tel,
             h->casa_phase_convention,
             1, /* Use true coordinates. */
@@ -207,7 +299,11 @@ static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
 
     /* Get source direction cosines. */
     const oskar_Mem* lmn[3];
-    if (oskar_telescope_phase_centre_coord_type(d->tel) == OSKAR_COORDS_AZEL)
+    if (h->astrometry)
+    {
+        lmn[0] = d->lmn[0]; lmn[1] = d->lmn[1]; lmn[2] = d->lmn[2];
+    }
+    else if (oskar_telescope_phase_centre_coord_type(d->tel) == OSKAR_COORDS_AZEL)
     {
         /* Calculate ENU source direction cosines for array centre. */
         const double lst_rad = gast_rad + oskar_telescope_lon_rad(d->tel);
@@ -243,13 +339,13 @@ static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
 
     /* Evaluate station beam (Jones E: may be matrix). */
     const oskar_Mem* const source_coords[] = {
-            oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_L, 0),
-            oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_M, 0),
-            oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_N, 0)
+            h->astrometry ? d->itrs[0] : oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_L, 0),
+            h->astrometry ? d->itrs[1] : oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_M, 0),
+            h->astrometry ? d->itrs[2] : oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_N, 0)
     };
     oskar_timer_resume(d->tmr_E);
     oskar_evaluate_jones_E(
-            d->E, OSKAR_COORDS_REL_DIR, num_src, source_coords,
+            d->E, h->astrometry ? OSKAR_COORDS_ITRS_DIR : OSKAR_COORDS_REL_DIR, num_src, source_coords,
             oskar_sky_double(sky, OSKAR_SKY_REF_RA_RAD),
             oskar_sky_double(sky, OSKAR_SKY_REF_DEC_RAD),
             d->tel, time_index_sim, t_start, t_dump, freq, d->station_work,
@@ -262,14 +358,16 @@ static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
     if (d->R)
     {
         oskar_timer_resume(d->tmr_E);
-        oskar_evaluate_jones_R(d->R, num_src,
+        if (!h->astrometry) oskar_evaluate_jones_R(d->R, num_src,
                 oskar_sky_column_const(sky, OSKAR_SKY_RA_RAD, 0),
                 oskar_sky_column_const(sky, OSKAR_SKY_DEC_RAD, 0),
                 d->tel, gast_rad, status
         );
         oskar_timer_pause(d->tmr_E);
         oskar_timer_resume(d->tmr_join);
-        oskar_jones_join(d->R, d->E, d->R, status);
+        if (h->astrometry)
+            oskar_jones_join(d->E, d->E, d->R, status);
+        else oskar_jones_join(d->R, d->E, d->R, status);
         oskar_timer_pause(d->tmr_join);
     }
 
@@ -279,11 +377,15 @@ static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
             lmn[0], lmn[1], lmn[2], uvw[0], uvw[1], uvw[2],
             freq, src_flux[0], h->source_min_jy, h->source_max_jy,
             h->ignore_w_components, status);
+    if (weight != 1.)
+        oskar_mem_scale_real(oskar_jones_mem(d->K), sqrt(weight),
+                0, oskar_mem_length(oskar_jones_mem(d->K)), status);
     oskar_timer_pause(d->tmr_K);
 
     /* Multiply Jones matrix chain to get a single block. */
     oskar_timer_resume(d->tmr_join);
-    oskar_jones_join(d->J, d->K, d->R ? d->R : d->E, status);
+    oskar_jones_join(d->J, d->K,
+            (d->R && !h->astrometry) ? d->R : d->E, status);
     oskar_timer_pause(d->tmr_join);
 
     /* Check whether gain model exists.
@@ -324,7 +426,16 @@ static void sim_baselines(oskar_Interferometer* h, DeviceData* d,
             oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_EXT_B, 0),
             oskar_sky_column_const(sky, OSKAR_SKY_SCRATCH_EXT_C, 0),
         };
-        oskar_cross_correlate(
+        if (h->astrometry && source_type == 1)
+        {
+            const oskar_Mem* const axes[] = {d->gaussian_axes[0], d->gaussian_axes[1],
+                d->gaussian_axes[2], d->gaussian_axes[3], d->gaussian_axes[4], d->gaussian_axes[5]};
+            oskar_cross_correlate_gaussian_uvw(h->casa_phase_convention,
+                    num_src, d->J, src_flux, axes, d->tel, uvw, freq,
+                    num_baselines * offset,
+                    oskar_vis_block_cross_correlations(d->vis_block), status);
+        }
+        else oskar_cross_correlate(
                 h->casa_phase_convention,
                 source_type, num_src, d->J,
                 src_flux, lmn, src_extended,

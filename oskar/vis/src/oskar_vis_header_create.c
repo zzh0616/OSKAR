@@ -81,6 +81,7 @@ oskar_VisHeader* oskar_vis_header_create(int amp_type, int coord_precision,
     /* Initialise arrays. */
     hdr->telescope_path = oskar_mem_create(OSKAR_CHAR, OSKAR_CPU, 0, status);
     hdr->settings = oskar_mem_create(OSKAR_CHAR, OSKAR_CPU, 0, status);
+    hdr->astrometry_eop = oskar_mem_create(OSKAR_CHAR, OSKAR_CPU, 0, status);
     hdr->station_diameter_m = oskar_mem_create(
             OSKAR_DOUBLE, OSKAR_CPU, num_stations, status
     );

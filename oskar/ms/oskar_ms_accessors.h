@@ -17,6 +17,11 @@
 extern "C" {
 #endif
 
+/* Returns nonzero on invalid arguments or a casacore exception. */
+OSKAR_MS_EXPORT
+int oskar_ms_set_astrometry_metadata(oskar_MeasurementSet* p,
+        int frame, const char* eop_snapshot, double channel_width_hz);
+
 /**
  * @brief
  * Returns the size in bytes of an element in a column of the Measurement Set.

@@ -77,6 +77,16 @@ oskar_Binary* oskar_vis_header_write(
         );
     }
 
+    /* Namespaced extension: legacy files remain unchanged. */
+    if (hdr->astrometry_frame)
+    {
+        oskar_binary_write_ext_int(h, "OSKAR_ASTROMETRY", "FRAME_V1", 0,
+                hdr->astrometry_frame, status);
+        oskar_binary_write_ext(h, OSKAR_CHAR, "OSKAR_ASTROMETRY", "EOP_V1", 0,
+                oskar_mem_length(hdr->astrometry_eop),
+                oskar_mem_char_const(hdr->astrometry_eop), status);
+    }
+
     /* If settings exist, write out the data. */
     str = oskar_mem_char(hdr->settings);
     if (str && strlen(str) > 0)
