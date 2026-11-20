@@ -3,6 +3,12 @@
 <s k="interferometer"><label>Interferometer settings</label>
     <desc>These settings are used only when running the interferometer
         simulation.</desc>
+    <s k="physical_station_tec_phase"><label>Apply TEC phase per physical station</label>
+        <type name="bool" default="false"/>
+        <desc>With an external screen, sample its dispersive phase separately
+            for each station and sky direction after evaluating the nominal beams.
+            Nominal beam duplication is independent of screen sampling.
+            This phase-only model omits Faraday rotation.</desc></s>
     <s k="channel_bandwidth_hz" priority="1"><label>Channel bandwidth [Hz]</label>
         <type name="UnsignedDouble" default="0"/>
         <desc>The channel width, in Hz, used to simulate bandwidth smearing.
