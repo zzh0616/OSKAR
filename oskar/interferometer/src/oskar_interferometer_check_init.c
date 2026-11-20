@@ -404,7 +404,8 @@ static void* init_device(void* arg)
                 oskar_telescope_tec_screen_height_km(d->tel),
                 oskar_telescope_tec_screen_pixel_size_m(d->tel),
                 oskar_telescope_tec_screen_time_interval_sec(d->tel));
-        if (oskar_telescope_ionosphere_screen_type(d->tel) == 'E')
+        const int screen = oskar_telescope_ionosphere_screen_type(d->tel);
+        if (screen == 'E' || screen == 'P')
         {
             oskar_station_work_set_tec_screen_path(d->station_work,
                     oskar_telescope_tec_screen_path(d->tel));

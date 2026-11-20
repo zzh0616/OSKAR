@@ -192,7 +192,7 @@ const oskar_Mem* oskar_station_work_evaluate_tec_screen(
     {
         return 0;
     }
-    else if (work->screen_type == 'E')
+    else if (work->screen_type == 'E' || work->screen_type == 'P')
     {
         /* External phase screen. */
         if (work->screen_num_pixels_x == 0 || work->screen_num_pixels_y == 0)

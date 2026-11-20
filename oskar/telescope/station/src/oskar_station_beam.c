@@ -199,7 +199,8 @@ void oskar_station_beam(
     }
 
     /* Apply ionospheric screen. */
-    if (work->screen_type != 'N')
+    /* Physical-station phase is applied after nominal beam duplication. */
+    if (work->screen_type != 'N' && work->screen_type != 'P')
     {
         const oskar_Mem* ionosphere = 0;
 

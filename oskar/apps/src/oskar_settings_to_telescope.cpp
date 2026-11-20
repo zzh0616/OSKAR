@@ -304,6 +304,8 @@ oskar_Telescope* oskar_settings_to_telescope(
 
     /* Set ionosphere parameters if enabled. */
     s->clear_group();
+    const bool physical_phase = s->contains("interferometer/physical_station_tec_phase") &&
+            s->to_int("interferometer/physical_station_tec_phase", status);
     s->begin_group("telescope");
     const char* ionosphere_screen_type =
             s->to_string("ionosphere_screen_type", status);
@@ -312,6 +314,7 @@ oskar_Telescope* oskar_settings_to_telescope(
             s->to_int("isoplanatic_screen", status));
     if (std::toupper(ionosphere_screen_type[0]) == 'E')
     {
+        if (physical_phase) oskar_telescope_set_ionosphere_screen_type(t, "P");
         s->begin_group("external_tec_screen");
         const char* screen_path = s->to_string("input_fits_file", status);
         if (strlen(screen_path) > 0)
