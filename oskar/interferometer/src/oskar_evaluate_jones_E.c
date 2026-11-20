@@ -5,6 +5,8 @@
 
 #include "convert/oskar_convert_any_to_enu_directions.h"
 #include "convert/oskar_convert_enu_directions_to_theta_phi.h"
+#include "convert/oskar_convert_enu_directions_to_relative_directions.h"
+#include "telescope/private_telescope.h"
 #include "convert/oskar_convert_mjd_to_gast_fast.h"
 #include "interferometer/oskar_evaluate_jones_E.h"
 #include "interferometer/oskar_jones_accessors.h"
@@ -83,6 +85,70 @@ static void oskar_evaluate_element_beams_harp(
     }
 }
 
+
+/* Sample the existing TEC evaluator on each physical line of sight. The
+ * shared station models carry the reference station position; the telescope
+ * coordinate arrays retain the positions of every physical station. */
+static void apply_physical_station_phase(oskar_Jones* E, int coord_type,
+        int num_points, const oskar_Mem* const source_coords[3],
+        double ref_lon_rad, double ref_lat_rad, const oskar_Telescope* tel,
+        int time_index, double time_start_mjd_utc, double time_mjd_utc,
+        double frequency_hz, oskar_StationWork* work, int* status)
+{
+    if (*status || !num_points) return;
+    const int tracking = tel->phase_centre_coord_type == OSKAR_COORDS_RADEC;
+    if (!tracking && tel->phase_centre_coord_type != OSKAR_COORDS_AZEL)
+    {
+        *status = OSKAR_ERR_INVALID_ARGUMENT;
+        return;
+    }
+    const double gast = oskar_convert_mjd_to_gast_fast(time_mjd_utc);
+    const double* lon = oskar_mem_double_const(tel->station_true_geodetic_rad[0], status);
+    const double* lat = oskar_mem_double_const(tel->station_true_geodetic_rad[1], status);
+    const double no_rotation[3] = {0., 0., 0.};
+    oskar_Mem *enu[3], *lmn[3], *host_offsets[3] = {0, 0, 0};
+    const oskar_Mem* offsets[3];
+    for (int j = 0; j < 3; ++j)
+    {
+        offsets[j] = tel->station_true_offset_ecef_metres[j];
+        if (oskar_mem_location(offsets[j]) != OSKAR_CPU)
+        {
+            host_offsets[j] = oskar_mem_create_copy(offsets[j], OSKAR_CPU, status);
+            offsets[j] = host_offsets[j];
+        }
+        enu[j] = oskar_station_work_enu_direction(work, j, num_points, status);
+        lmn[j] = oskar_station_work_lmn_direction(work, j, num_points, status);
+    }
+    for (int i = 0; i < tel->num_stations && !*status; ++i)
+    {
+        const double lst = gast + lon[i];
+        const double gha = tracking ? gast - tel->phase_centre_rad[0] : -lon[i];
+        const double dec = tracking ? tel->phase_centre_rad[1] : lat[i];
+        const double x = oskar_mem_get_element(offsets[0], i, status);
+        const double y = oskar_mem_get_element(offsets[1], i, status);
+        const double z = oskar_mem_get_element(offsets[2], i, status);
+        const double u = x * sin(gha) + y * cos(gha);
+        const double v = z * cos(dec) - x * cos(gha) * sin(dec) + y * sin(gha) * sin(dec);
+        oskar_convert_any_to_enu_directions(coord_type, num_points, source_coords,
+                ref_lon_rad, ref_lat_rad, lst, lat[i], enu, status);
+        if (tracking)
+        {
+            oskar_convert_enu_directions_to_relative_directions(
+                    0, num_points, enu[0], enu[1], enu[2],
+                    lst - tel->phase_centre_rad[0], dec, lat[i],
+                    0, lmn[0], lmn[1], lmn[2], status);
+        }
+        oskar_Mem* beam = oskar_jones_mem(E);
+        const oskar_Mem* phase = oskar_station_work_evaluate_tec_screen(work,
+                num_points, tracking ? lmn[0] : enu[0], tracking ? lmn[1] : enu[1],
+                enu[0], enu[1], enu[2], u, v, time_index, time_start_mjd_utc,
+                time_mjd_utc, frequency_hz, no_rotation, beam, status);
+        const size_t offset = (size_t)i * oskar_jones_num_sources(E);
+        if (!*status) oskar_mem_multiply(beam, beam, phase, offset, offset, 0,
+                num_points, status);
+    }
+    for (int j = 0; j < 3; ++j) oskar_mem_free(host_offsets[j], status);
+}
 
 /* NOLINTNEXTLINE(readability-identifier-naming) */
 void oskar_evaluate_jones_E(
@@ -190,6 +256,12 @@ void oskar_evaluate_jones_E(
         }
         free(models_evaluated);
         free(model_offsets);
+    }
+    if (work->screen_type == 'P')
+    {
+        apply_physical_station_phase(E, coord_type, num_points, source_coords,
+                ref_lon_rad, ref_lat_rad, tel, time_index, time_start_mjd_utc,
+                time_mjd_utc, frequency_hz, work, status);
     }
 }
 
